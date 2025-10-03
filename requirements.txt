@@ -1,0 +1,10 @@
+torch
+torchvision
+tensorboard
+transformers
+datasets
+accelerate
+Pillow
+matplotlib
+requests
+tqdm
