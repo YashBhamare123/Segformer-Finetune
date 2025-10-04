@@ -30,7 +30,7 @@ def train(epochs : int,
 
         mean_train_loss = 0
         model.train()
-        for inps in train_dl:
+        for inps in tqdm(train_dl):
             inps['pixel_values'] = inps['pixel_values'].to(device = device)
             inps['labels'] = inps['labels'].to(device = device)
 
@@ -42,7 +42,7 @@ def train(epochs : int,
 
             mean_train_loss += loss.item()
 
-        mean_train_loss = mean_train_loss / train_size
+        mean_train_loss = mean_train_loss / len(train_dl)
         writer.add_scalar('Training Loss', mean_train_loss, global_step = epoch)
 
         mean_val_loss = 0    
@@ -65,23 +65,27 @@ def train(epochs : int,
                 )
                 pred_seg = torch.argmax(upsampled_logits, dim = 1)
                 pred_seg = pred_seg.to(dtype = torch.float32) / 255.
-                pred_seg = pred_seg.unsqueeze(1)
+                pred_seg = pred_seg.unsqueeze(1) 
                 mask_grid = make_grid(pred_seg)
                 writer.add_image('Predicted Masks', mask_grid, global_step= 4 * epoch + 4 * idx // val_size)
             
-        mean_val_loss = mean_val_loss / val_size
+        mean_val_loss = mean_val_loss / len(val_dl)
         writer.add_scalar('Validation Loss', mean_val_loss, global_step = epoch)
+        model.save_pretrained(f'../../workspace/segformer_full_ds/segformer_b2_clothes_epoch_{epoch}')
+
+
+
 
 
 def main():
     # dataset and preprocessor load
-    ds = load_dataset('YashBhamare123/human_parsing_dataset_plus_neck', split = 'train[:1000]')
+    ds = load_dataset('YashBhamare123/human_parsing_dataset_plus_neck', split = 'train')
     processor = SegformerImageProcessor.from_pretrained('mattmdjaga/segformer_b2_clothes')
 
     dataset = SegmentationDataset(ds, processor)
-    train_ds, val_ds = random_split(dataset, [int(0.8 * len(dataset)), int(0.2 * len(dataset))])
-    train_dl = DataLoader(train_ds, batch_size = 16, shuffle = True, pin_memory= True)
-    val_dl = DataLoader(val_ds, batch_size = 16, shuffle = True, pin_memory = True)
+    train_ds, val_ds = random_split(dataset, [0.8, 0.2])
+    train_dl = DataLoader(train_ds, batch_size = 16, shuffle = True, pin_memory= True, num_workers = 8)
+    val_dl = DataLoader(val_ds, batch_size = 16, shuffle = True, pin_memory = True, num_workers = 8)
 
     # model prep
     model = AutoModelForSemanticSegmentation.from_pretrained('mattmdjaga/segformer_b2_clothes')
@@ -95,7 +99,7 @@ def main():
 
     # train prep
     epochs = 100
-    lr = 1e-8
+    lr = 1e-5
     optim = torch.optim.AdamW(model.parameters(), lr = lr)
     train_size = len(train_ds)
     val_size = len(val_ds)
